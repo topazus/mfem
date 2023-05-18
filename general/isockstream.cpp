@@ -47,51 +47,51 @@ isockstream::isockstream(int port)
    Buf = NULL;
 }
 
-int isockstream::establish()
-{
-   // char myname[129];
-   char   myname[] = "localhost";
-   int    port;
-   struct sockaddr_in sa;
-   struct hostent *hp;
+int isockstream::establish() {
+  // char myname[129];
+  char myname[] = "localhost";
+  int port;
+  struct sockaddr_in sa;
+  struct addrinfo hints, *res;
 
-   memset(&sa, 0, sizeof(struct sockaddr_in));
-   // gethostname(myname, 128);
-   hp= gethostbyname(myname);
+  memset(&sa, 0, sizeof(struct sockaddr_in));
+  // gethostname(myname, 128);
 
-   if (hp == NULL)
-   {
-      mfem::err << "isockstream::establish(): gethostbyname() failed!\n"
-                << "isockstream::establish(): gethostname() returned: '"
-                << myname << "'" << endl;
-      error = 1;
-      return (-1);
-   }
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
 
-   sa.sin_family= hp->h_addrtype;
-   sa.sin_port= htons(portnum);
+  if (getaddrinfo(myname, NULL, &hints, &res) != 0) {
+    mfem::err << "isockstream::establish(): getaddrinfo() failed!\n"
+              << "isockstream::establish(): gethostname() returned: '" << myname
+              << "'" << endl;
+    error = 1;
+    return (-1);
+  }
 
-   if ((port = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-   {
-      mfem::err << "isockstream::establish(): socket() failed!" << endl;
-      error = 2;
-      return (-1);
-   }
+  sa.sin_family = res->ai_family;
+  sa.sin_port = htons(portnum);
 
-   int on=1;
-   setsockopt(port, SOL_SOCKET, SO_REUSEADDR, (char *)(&on), sizeof(on));
+  if ((port = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    mfem::err << "isockstream::establish(): socket() failed!" << endl;
+    error = 2;
+    return (-1);
+  }
 
-   if (bind(port,(const sockaddr*)&sa,(socklen_t)sizeof(struct sockaddr_in)) < 0)
-   {
-      mfem::err << "isockstream::establish(): bind() failed!" << endl;
-      close(port);
-      error = 3;
-      return (-1);
-   }
+  int on = 1;
+  setsockopt(port, SOL_SOCKET, SO_REUSEADDR, (char *)(&on), sizeof(on));
 
-   listen(port, 4);
-   error = 0;
-   return (port);
+  if (bind(port, (const sockaddr *)&sa, (socklen_t)sizeof(struct sockaddr_in)) <
+      0) {
+    mfem::err << "isockstream::establish(): bind() failed!" << endl;
+    close(port);
+    error = 3;
+    return (-1);
+  }
+
+  listen(port, 4);
+  error = 0;
+  return (port);
 }
 
 int isockstream::read_data(int s, char *buf, int n)
