@@ -91,57 +91,58 @@ int socketbuf::attach(int sd)
    return old_sd;
 }
 
-int socketbuf::open(const char hostname[], int port)
-{
-   struct sockaddr_in  sa;
-   struct hostent     *hp;
+int socketbuf::open(const char hostname[], int port) {
+  struct addrinfo hints, *result, *rp;
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_protocol = 0;
 
-   if (!wsInit_.Initialized())
-   {
-      mfem_error("Attempting to open socket, but Winsock not initialized.");
-   }
+  if (!wsInit_.Initialized()) {
+    mfem_error("Attempting to open socket, but Winsock not initialized.");
+  }
 
-   close();
-   setg(NULL, NULL, NULL);
-   setp(obuf, obuf + buflen);
+  close();
+  setg(NULL, NULL, NULL);
+  setp(obuf, obuf + buflen);
 
-   hp = gethostbyname(hostname);
-   if (hp == NULL)
-   {
-      socket_descriptor = -3;
-      return -1;
-   }
-   memset(&sa, 0, sizeof(sa));
-   memcpy((char *)&sa.sin_addr, hp->h_addr, hp->h_length);
-   sa.sin_family = hp->h_addrtype;
-   sa.sin_port = htons(port);
-   socket_descriptor = socket(hp->h_addrtype, SOCK_STREAM, 0);
-   if (socket_descriptor < 0)
-   {
-      return -1;
-   }
+  int s = getaddrinfo(hostname, std::to_string(port).c_str(), &hints, &result);
+  if (s != 0) {
+    socket_descriptor = -3;
+    return -1;
+  }
+
+  for (rp = result; rp != NULL; rp = rp->ai_next) {
+    socket_descriptor = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    if (socket_descriptor == -1)
+      continue;
+
+    if (connect(socket_descriptor, rp->ai_addr, rp->ai_addrlen) != -1)
+      break;
+
+    closesocket(socket_descriptor);
+  }
+
+  if (rp == NULL) {
+    socket_descriptor = -2;
+    return -1;
+  }
+
+  freeaddrinfo(result);
 
 #if defined __APPLE__
-   // OS X does not support the MSG_NOSIGNAL option of send().
-   // Instead we can use the SO_NOSIGPIPE socket option.
-   int on = 1;
-   if (setsockopt(socket_descriptor, SOL_SOCKET, SO_NOSIGPIPE,
-                  (char *)(&on), sizeof(on)) < 0)
-   {
-      closesocket(socket_descriptor);
-      socket_descriptor = -2;
-      return -1;
-   }
+  // OS X does not support the MSG_NOSIGNAL option of send().
+  // Instead we can use the SO_NOSIGPIPE socket option.
+  int on = 1;
+  if (setsockopt(socket_descriptor, SOL_SOCKET, SO_NOSIGPIPE, (char *)(&on),
+                 sizeof(on)) < 0) {
+    closesocket(socket_descriptor);
+    socket_descriptor = -2;
+    return -1;
+  }
 #endif
 
-   if (connect(socket_descriptor,
-               (const struct sockaddr *)&sa, sizeof(sa)) < 0)
-   {
-      closesocket(socket_descriptor);
-      socket_descriptor = -2;
-      return -1;
-   }
-   return 0;
+  return 0;
 }
 
 int socketbuf::close()
