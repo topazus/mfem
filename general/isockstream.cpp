@@ -53,22 +53,23 @@ int isockstream::establish()
    char   myname[] = "localhost";
    int    port;
    struct sockaddr_in sa;
-   struct hostent *hp;
 
    memset(&sa, 0, sizeof(struct sockaddr_in));
-   // gethostname(myname, 128);
-   hp= gethostbyname(myname);
+   struct addrinfo hints, *res;
+   memset(&hints, 0, sizeof(hints));
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
 
-   if (hp == NULL)
+   if (getaddrinfo(myname, NULL, &hints, &res) != 0)
    {
-      mfem::err << "isockstream::establish(): gethostbyname() failed!\n"
-                << "isockstream::establish(): gethostname() returned: '"
+      mfem::err << "isockstream::establish(): getaddrinfo() failed!\n"
+                << "isockstream::establish(): getaddrinfo() returned: '"
                 << myname << "'" << endl;
       error = 1;
       return (-1);
    }
 
-   sa.sin_family= hp->h_addrtype;
+   sa.sin_family = res->ai_family;
    sa.sin_port= htons(portnum);
 
    if ((port = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -91,6 +92,7 @@ int isockstream::establish()
 
    listen(port, 4);
    error = 0;
+   freeaddrinfo(res);
    return (port);
 }
 

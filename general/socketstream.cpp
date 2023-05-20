@@ -94,7 +94,7 @@ int socketbuf::attach(int sd)
 int socketbuf::open(const char hostname[], int port)
 {
    struct sockaddr_in  sa;
-   struct hostent     *hp;
+   struct addrinfo     hints, *res;
 
    if (!wsInit_.Initialized())
    {
@@ -105,17 +105,18 @@ int socketbuf::open(const char hostname[], int port)
    setg(NULL, NULL, NULL);
    setp(obuf, obuf + buflen);
 
-   hp = gethostbyname(hostname);
-   if (hp == NULL)
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
+   if (getaddrinfo(hostname, NULL, &hints, &res) != 0)
    {
       socket_descriptor = -3;
       return -1;
    }
    memset(&sa, 0, sizeof(sa));
-   memcpy((char *)&sa.sin_addr, hp->h_addr, hp->h_length);
-   sa.sin_family = hp->h_addrtype;
+   memcpy((char *)&sa.sin_addr, res->ai_addr, res->ai_addrlen);
+   sa.sin_family = res->ai_family;
    sa.sin_port = htons(port);
-   socket_descriptor = socket(hp->h_addrtype, SOCK_STREAM, 0);
+   socket_descriptor = socket(res->ai_family, SOCK_STREAM, 0);
    if (socket_descriptor < 0)
    {
       return -1;
@@ -141,6 +142,7 @@ int socketbuf::open(const char hostname[], int port)
       socket_descriptor = -2;
       return -1;
    }
+   freeaddrinfo(res);
    return 0;
 }
 
